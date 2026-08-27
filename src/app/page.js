@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import Link from 'next/link';
-import { 
-  TrendingUp, Users, Target, CheckSquare, Plus, AlertTriangle, 
+import {
+  TrendingUp, Users, Target, CheckSquare, Plus, AlertTriangle,
   Smartphone, MessageSquare, PhoneCall, Check, Calendar, ArrowRight, UserCheck
 } from 'lucide-react';
 
@@ -58,7 +58,7 @@ export default function Dashboard() {
   // --- MANAGER VIEW ---
   if (user?.role_id === 'manager') {
     const statusColor = mission?.status === 'On Track' ? 'var(--color-success)' : mission?.status === 'Watch' ? 'var(--color-warning)' : 'var(--color-danger)';
-    
+
     return (
       <div>
         {/* Header */}
@@ -188,7 +188,7 @@ export default function Dashboard() {
       {/* Header */}
       <div className="header-bar">
         <div>
-          <h1 className="page-title">Welcome, Shuaib</h1>
+          <h1 className="page-title">Welcome, Islamiyyat</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Let's convert today's enquiries into happy customers.</p>
         </div>
         <Link href="/leads/new" className="btn btn-primary" style={{ gap: 8 }}>
@@ -224,7 +224,7 @@ export default function Dashboard() {
       {/* Core action checklist */}
       <div className="card">
         <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Today's Follow-up Agenda</h3>
-        
+
         {metrics?.dueToday === 0 ? (
           <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--text-secondary)', fontSize: 14 }}>
             No follow-ups due today. Capture new walk-ins to build your pipeline!
