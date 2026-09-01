@@ -49,9 +49,22 @@ export function getSheetsClient() {
     throw new Error('Google credentials or Spreadsheet ID not configured.');
   }
 
+  // Aggressively normalize the private key. Vercel sometimes mangles JSON newlines or adds quotes.
+  let formattedKey = config.credentials.private_key || '';
+  formattedKey = formattedKey.replace(/\\n/g, '\n'); // Replace literal \n with actual newlines
+  formattedKey = formattedKey.replace(/"/g, '');    // Remove any rogue quotes
+  
+  // Ensure the key has proper PEM formatting if Vercel stripped newlines entirely
+  if (!formattedKey.includes('\n') && formattedKey.includes('-----BEGIN PRIVATE KEY-----')) {
+    formattedKey = formattedKey
+      .replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n')
+      .replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----')
+      .replace(/ ([a-zA-Z0-9+/=]{64}) /g, '\n$1\n'); // Attempt to reconstruct if spaces replaced newlines
+  }
+
   const auth = new JWT({
     email: config.credentials.client_email,
-    key: config.credentials.private_key.replace(/\\n/g, '\n'),
+    key: formattedKey,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
 

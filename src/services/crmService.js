@@ -2,7 +2,7 @@ import { readSheet, appendRow, updateRow } from '../lib/google-sheets';
 
 // Helper to generate UUIDs locally
 function generateUUID() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
     const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
@@ -14,7 +14,7 @@ async function generateNextDisplayId(sheetName, prefix) {
     const rows = await readSheet(sheetName);
     let maxNum = 0;
     const regex = new RegExp(`^${prefix}-(\\d+)$`);
-    
+
     rows.forEach(row => {
       const match = String(row.display_id || '').match(regex);
       if (match) {
@@ -162,11 +162,11 @@ export async function qualifyLead(leadId, userId) {
       const leadPhoneNorm = normalizePhone(lead.phone);
       const cWANorm = normalizePhone(c.whatsapp);
       const leadWANorm = normalizePhone(lead.whatsapp);
-      
+
       const phoneMatch = leadPhoneNorm && cPhoneNorm && cPhoneNorm === leadPhoneNorm;
       const waMatch = leadWANorm && cWANorm && cWANorm === leadWANorm;
       const emailMatch = lead.email && c.email && c.email.toLowerCase().trim() === lead.email.toLowerCase().trim() && lead.email.trim() !== '';
-      
+
       return phoneMatch || waMatch || emailMatch;
     });
 
@@ -779,7 +779,7 @@ export async function getLaptopMissionProgress() {
   // Let's check sales. For now, since the category lives in Opportunity, we can match opportunity category = 'Laptop'
   const opportunities = await getOpportunities();
   let soldQty = 0;
-  
+
   sales.forEach(sale => {
     const opp = opportunities.find(o => o.opportunity_id === sale.opportunity_id);
     if (opp && opp.category === 'Laptop') {
@@ -792,12 +792,12 @@ export async function getLaptopMissionProgress() {
 
   // Days calculations
   const totalDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) || 122; // Sept-Dec = 122 days
-  
+
   // Days elapsed (limit between 0 and totalCampaignDays)
   let daysElapsed = Math.ceil((now - startDate) / (1000 * 60 * 60 * 24));
   if (daysElapsed < 0) daysElapsed = 0;
   if (daysElapsed > totalDays) daysElapsed = totalDays;
-  
+
   const daysRemaining = Math.max(0, totalDays - daysElapsed);
 
   // Velocity calculations
