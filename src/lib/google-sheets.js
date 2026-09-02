@@ -36,9 +36,15 @@ export function getCredentials() {
   }
 
   try {
-    const creds = JSON.parse(key);
+    let jsonStr = key.trim();
+    if (!jsonStr.startsWith('{')) {
+      // If it doesn't start with {, assume it's base64 encoded (Vercel best practice)
+      jsonStr = Buffer.from(jsonStr, 'base64').toString('utf-8');
+    }
+    const creds = JSON.parse(jsonStr);
     return { credentials: creds, spreadsheetId };
   } catch (e) {
+    console.error('Failed to parse GOOGLE_SERVICE_ACCOUNT_KEY:', e.message);
     return null;
   }
 }
