@@ -77,7 +77,9 @@ export default function NewLeadPage() {
   const handleSelectCustomer = (cust) => {
     setSelectedCustomerId(cust.customer_id);
     setSelectedCustomer(cust);
-    setName(`${cust.first_name} ${cust.last_name}`.trim());
+    // Handle both split-name (first_name/last_name) and single-name formats
+    const fullName = cust.name || `${cust.first_name || ''} ${cust.last_name || ''}`.trim();
+    setName(fullName);
     setPhone(cust.phone || '');
     setWhatsapp(cust.whatsapp || '');
     setEmail(cust.email || '');
@@ -97,14 +99,23 @@ export default function NewLeadPage() {
 
   const filteredCustomers = searchQuery.trim().length >= 1
     ? customers.filter(c => {
-        const fullName = `${c.first_name} ${c.last_name}`.toLowerCase();
         const query = searchQuery.toLowerCase().trim();
+        // Support both split-name and single-name formats
+        const fullName = `${c.first_name || ''} ${c.last_name || ''}`.trim().toLowerCase();
+        const singleName = (c.name || '').toLowerCase();
+        const displayId = (c.display_id || '').toLowerCase();
+        const phoneNorm = (c.phone || '').replace(/\s/g, '');
+        const waPhoneNorm = (c.whatsapp || '').replace(/\s/g, '');
+        const queryNorm = query.replace(/\s/g, '');
         return (
           fullName.includes(query) ||
-          (c.phone && c.phone.replace(/\s/g, '').includes(query.replace(/\s/g, ''))) ||
+          singleName.includes(query) ||
+          displayId.includes(query) ||
+          (phoneNorm && phoneNorm.includes(queryNorm)) ||
+          (waPhoneNorm && waPhoneNorm.includes(queryNorm)) ||
           (c.email && c.email.toLowerCase().includes(query))
         );
-      }).slice(0, 8)
+      }).slice(0, 10)
     : [];
 
   const nextStep = () => {
@@ -291,7 +302,9 @@ export default function NewLeadPage() {
                           onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                         >
                           <div>
-                            <div style={{ fontWeight: 700 }}>{cust.first_name} {cust.last_name}</div>
+                            <div style={{ fontWeight: 700 }}>
+                              {cust.name || `${cust.first_name || ''} ${cust.last_name || ''}`.trim() || '(No name)'}
+                            </div>
                             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
                               {cust.phone}{cust.email ? ` · ${cust.email}` : ''}
                             </div>
