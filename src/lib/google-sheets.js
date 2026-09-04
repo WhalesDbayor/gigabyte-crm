@@ -225,16 +225,32 @@ export async function initializeSpreadsheetSchema(spreadsheetId, serviceAccountK
 
   let privateKey, clientEmail;
   try {
-    const creds = JSON.parse(serviceAccountKey);
+    let jsonStr = serviceAccountKey.trim();
+    if (!jsonStr.startsWith('{')) {
+      jsonStr = Buffer.from(jsonStr, 'base64').toString('utf-8');
+    }
+    const creds = JSON.parse(jsonStr);
     privateKey = creds.private_key;
     clientEmail = creds.client_email;
   } catch (e) {
-    throw new Error('Invalid Service Account Key format. Must be JSON string.');
+    throw new Error('Invalid Service Account Key format. Must be JSON string or Base64 encoded JSON.');
+  }
+
+  // Aggressively normalize the private key.
+  let formattedKey = privateKey || '';
+  formattedKey = formattedKey.replace(/\\n/g, '\n');
+  formattedKey = formattedKey.replace(/"/g, '');
+  
+  if (!formattedKey.includes('\n') && formattedKey.includes('-----BEGIN PRIVATE KEY-----')) {
+    formattedKey = formattedKey
+      .replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n')
+      .replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----')
+      .replace(/ ([a-zA-Z0-9+/=]{64}) /g, '\n$1\n');
   }
 
   const auth = new JWT({
     email: clientEmail,
-    key: privateKey.replace(/\\n/g, '\n'),
+    key: formattedKey,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
 
