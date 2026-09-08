@@ -1,4 +1,4 @@
-import { readSheet, appendRow, updateRow } from '../lib/google-sheets';
+﻿import { readSheet, appendRow, updateRow } from '../lib/google-sheets';
 
 // Helper to generate UUIDs locally
 function generateUUID() {
@@ -86,15 +86,78 @@ export async function createLead(leadData, userId) {
   const displayId = await generateNextDisplayId('04_Leads', 'LEAD');
   const now = new Date().toISOString();
 
+  // --- CUSTOMER UPSERT ---
+  // If the salesperson linked an existing customer, use that customer_id.
+  // Otherwise, check if a customer with the same phone/email already exists
+  // (prevents duplicates). If truly new, create a customer record immediately
+  // so they appear in future searches from lead capture step 1.
+  let customerId = leadData.customer_id || '';
+
+  if (!customerId) {
+    const customers = await getCustomers();
+    const existingCust = customers.find(c => {
+      const cPhoneNorm = normalizePhone(c.phone);
+      const leadPhoneNorm = normalizePhone(leadData.phone);
+      const cWANorm = normalizePhone(c.whatsapp);
+      const leadWANorm = normalizePhone(leadData.whatsapp);
+      const phoneMatch = leadPhoneNorm && cPhoneNorm && cPhoneNorm === leadPhoneNorm;
+      const waMatch = leadWANorm && cWANorm && cWANorm === leadWANorm;
+      const emailMatch = leadData.email && c.email &&
+        c.email.toLowerCase().trim() === leadData.email.toLowerCase().trim() &&
+        leadData.email.trim() !== '';
+      return phoneMatch || waMatch || emailMatch;
+    });
+
+    if (existingCust) {
+      // Existing customer found — link this lead to them (no new record created)
+      customerId = existingCust.customer_id;
+    } else {
+      // New customer — create a record now so they're searchable on next visit
+      const nameParts = (leadData.name || '').trim().split(/\s+/);
+      const custDisplayId = await generateNextDisplayId('03_Customers', 'CUS');
+      const newCust = {
+        customer_id: generateUUID(),
+        display_id: custDisplayId,
+        first_name: nameParts[0] || '',
+        last_name: nameParts.slice(1).join(' ') || '',
+        phone: leadData.phone || '',
+        whatsapp: leadData.whatsapp || '',
+        email: leadData.email || '',
+        gender: '',
+        location: '',
+        customer_type: 'Individual',
+        occupation: '',
+        organization: '',
+        source_id: leadData.source_id || 'SRC-001',
+        assigned_user_id: leadData.assigned_user_id || userId || 'SYSTEM',
+        customer_status: 'ACTIVE',
+        notes: '',
+        patronage_since: leadData.patronage_since || now.split('T')[0],
+        created_at: now,
+        updated_at: now
+      };
+      await appendRow('03_Customers', newCust);
+      customerId = newCust.customer_id;
+
+      await logActivity({
+        customerId,
+        userId,
+        type: 'CUSTOMER_CREATED',
+        description: `Auto-created customer record ${custDisplayId} (${leadData.name}) during lead capture.`,
+        outcome: 'Success'
+      });
+    }
+  }
+
   const newLead = {
     lead_id: leadId,
     display_id: displayId,
-    customer_id: leadData.customer_id || '',
+    customer_id: customerId,
     name: leadData.name || '',
     phone: leadData.phone || '',
     whatsapp: leadData.whatsapp || '',
     email: leadData.email || '',
-    source_id: leadData.source_id || 'SRC-001', // Walk-in default
+    source_id: leadData.source_id || 'SRC-001',
     campaign_id: leadData.campaign_id || '',
     interest_type: leadData.interest_type || 'Laptop',
     specific_interest: leadData.specific_interest || '',
@@ -103,7 +166,7 @@ export async function createLead(leadData, userId) {
     purpose: leadData.purpose || '',
     condition_preference: leadData.condition_preference || '',
     pain_point: leadData.pain_point || '',
-    patronage_since: leadData.patronage_since || '', // optional: "known since" anchor date
+    patronage_since: leadData.patronage_since || '',
     assigned_user_id: leadData.assigned_user_id || userId || 'SYSTEM',
     status: 'NEW',
     temperature: leadData.temperature || 'WARM',
@@ -114,6 +177,7 @@ export async function createLead(leadData, userId) {
   await appendRow('04_Leads', newLead);
   await logActivity({
     leadId,
+    customerId,
     userId,
     type: 'LEAD_CREATED',
     description: `Created lead ${displayId} (${newLead.name}) interested in ${newLead.interest_type}.`,
@@ -122,9 +186,10 @@ export async function createLead(leadData, userId) {
 
   // Automatically schedule initial contact follow-up
   const followUpDate = new Date();
-  followUpDate.setDate(followUpDate.getDate() + 1); // Follow up tomorrow
+  followUpDate.setDate(followUpDate.getDate() + 1);
   await createFollowup({
     lead_id: leadId,
+    customer_id: customerId,
     assigned_user_id: newLead.assigned_user_id,
     due_date: followUpDate.toISOString().split('T')[0],
     due_time: '10:00',
@@ -830,3 +895,4 @@ export async function getLaptopMissionProgress() {
     status
   };
 }
+

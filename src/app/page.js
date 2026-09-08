@@ -188,7 +188,7 @@ export default function Dashboard() {
       {/* Header */}
       <div className="header-bar">
         <div>
-          <h1 className="page-title">Welcome, Islamiyyat</h1>
+          <h1 className="page-title">Welcome, Oyinlade</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Let's convert today's enquiries into happy customers.</p>
         </div>
         <Link href="/leads/new" className="btn btn-primary" style={{ gap: 8 }}>

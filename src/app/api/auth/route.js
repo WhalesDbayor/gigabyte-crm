@@ -14,8 +14,8 @@ const MOCK_USERS = [
   },
   {
     user_id: 'usr-sales-222',
-    first_name: 'Islamiyyat',
-    last_name: 'Adebayo',
+    first_name: 'Oyinlade',
+    last_name: 'Omokanye',
     email: 'sales@gigabyte.com',
     role_id: 'sales_officer',
     role_name: 'Sales/Customer Relations',
