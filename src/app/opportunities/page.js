@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
-import { Target, CheckCircle2, XCircle, Calendar, Plus, MessageSquare, AlertCircle, ShoppingCart } from 'lucide-react';
+import { Target, CheckCircle2, XCircle, Calendar, Plus, MessageSquare, AlertCircle, ShoppingCart, Phone } from 'lucide-react';
 
 export default function OpportunitiesPage() {
   const { user } = useApp();
@@ -13,7 +13,11 @@ export default function OpportunitiesPage() {
   
   // Modals state
   const [activeOpp, setActiveOpp] = useState(null);
-  const [modalType, setModalType] = useState(null); // 'WIN' or 'LOSE'
+  const [modalType, setModalType] = useState(null); // 'WIN' | 'LOSE' | 'CUSTOMER'
+  const [activeCustomer, setActiveCustomer] = useState(null);
+
+  // Customer map
+  const [customers, setCustomers] = useState({});
   
   // WON Form fields
   const [winPrice, setWinPrice] = useState('');
@@ -33,6 +37,7 @@ export default function OpportunitiesPage() {
 
   useEffect(() => {
     fetchOpportunities();
+    fetchCustomers();
   }, []);
 
   const fetchOpportunities = async () => {
@@ -47,6 +52,22 @@ export default function OpportunitiesPage() {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCustomers = async () => {
+    try {
+      const res = await fetch('/api/customers');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.customers)) {
+        const map = {};
+        data.customers.forEach(c => {
+          map[c.customer_id] = c;
+        });
+        setCustomers(map);
+      }
+    } catch (e) {
+      console.error('Failed to load customers', e);
     }
   };
 
@@ -151,6 +172,7 @@ export default function OpportunitiesPage() {
   const closeModals = () => {
     setActiveOpp(null);
     setModalType(null);
+    setActiveCustomer(null);
   };
 
   const filteredOpps = opportunities.filter(opp => {
@@ -215,7 +237,23 @@ export default function OpportunitiesPage() {
                 </p>
 
                 <div style={{ backgroundColor: 'var(--bg-primary)', padding: 10, borderRadius: 6, fontSize: 13, marginBottom: 8 }}>
-                  <strong>Client ID:</strong> {opp.customer_id ? `Active Customer` : `New Lead`}
+                  <strong>Customer:</strong> {customers[opp.customer_id] ? (
+                    <span
+                      className="badge badge-primary clickable-cust"
+                      onClick={() => {
+                        setActiveCustomer(customers[opp.customer_id]);
+                        setModalType('CUSTOMER');
+                      }}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {customers[opp.customer_id].first_name} {customers[opp.customer_id].last_name}
+                    </span>
+                  ) : `New Lead`}
+                  {customers[opp.customer_id] && customers[opp.customer_id].phone && (
+                    <div style={{ color: 'var(--text-secondary)', marginTop: 4, fontSize: 12 }}>
+                      <Phone size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />{customers[opp.customer_id].phone}
+                    </div>
+                  )}
                   {opp.notes && <div style={{ color: 'var(--text-secondary)', marginTop: 4 }}>Note: {opp.notes}</div>}
                 </div>
 
@@ -400,6 +438,20 @@ export default function OpportunitiesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOMER DETAIL MODAL OVERLAY */}
+      {modalType === 'CUSTOMER' && activeCustomer && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div className="card" style={{ maxWidth: 350, width: '100%', margin: 0, maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Phone style={{ color: 'var(--accent-color)' }} /> Customer Details
+            </h3>
+            <p style={{ fontSize: 14, marginBottom: 8 }}><strong>Name:</strong> {activeCustomer.first_name} {activeCustomer.last_name}</p>
+            <p style={{ fontSize: 14 }}><strong>Phone:</strong> <a href={`tel:${activeCustomer.phone}`} style={{ color: 'var(--accent-color)', textDecoration: 'none' }}>{activeCustomer.phone}</a></p>
+            <button className="btn btn-secondary" onClick={closeModals} style={{ marginTop: 16, width: '100%' }}>Close</button>
           </div>
         </div>
       )}
