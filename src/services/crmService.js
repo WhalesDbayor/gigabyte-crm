@@ -339,7 +339,8 @@ export async function qualifyLead(leadId, userId) {
     notes: `Follow up on qualified opportunity ${oppDisplayId}.`
   }, userId);
 
-  return { customerId, opportunityId: oppId }
+  return { customerId, opportunityId: oppId };
+}
 
 // --- DELETE LEAD AND ASSOCIATED DATA ---
 export async function deleteLead(leadId, userId) {
