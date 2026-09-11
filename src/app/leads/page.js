@@ -3,16 +3,18 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
-import { Plus, Search, Filter, Phone, CheckCircle, ArrowRight, AlertCircle, ChevronDown, Check } from 'lucide-react';
+import { Plus, Search, Filter, Phone, CheckCircle, ArrowRight, AlertCircle, ChevronDown, Check, Trash2 } from 'lucide-react';
 
 export default function LeadsPage() {
-  const { user } = useApp();
+  const { user, isManager } = useApp();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [actionLoading, setActionLoading] = useState({});
   const [successMessage, setSuccessMessage] = useState(null);
+  const [leadToDelete, setLeadToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     fetchLeads();
@@ -30,6 +32,35 @@ export default function LeadsPage() {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteLead = async () => {
+    if (!leadToDelete) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch('/api/leads', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.user_id || 'SYSTEM',
+          'x-user-role': user?.role_id || ''
+        },
+        body: JSON.stringify({ leadId: leadToDelete.lead_id })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccessMessage(`Lead ${leadToDelete.display_id || leadToDelete.name} and associated data deleted successfully.`);
+        setLeadToDelete(null);
+        await fetchLeads();
+      } else {
+        alert(data.error || 'Failed to delete lead');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Network failure deleting lead.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -185,9 +216,100 @@ export default function LeadsPage() {
                     <CheckCircle size={16} /> Converted to Sale
                   </div>
                 )}
+
+                {isManager && (
+                  <button
+                    onClick={() => setLeadToDelete(lead)}
+                    className="btn btn-secondary"
+                    title="Delete lead and associated records"
+                    style={{
+                      height: 36,
+                      width: 36,
+                      padding: 0,
+                      color: 'var(--color-danger)',
+                      borderColor: 'rgba(255, 59, 48, 0.3)',
+                      backgroundColor: 'rgba(255, 59, 48, 0.05)',
+                      borderRadius: 8
+                    }}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Confirmation Modal for Lead Deletion (Manager only) */}
+      {leadToDelete && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          zIndex: 1000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 16
+        }}>
+          <div className="card" style={{ maxWidth: 400, width: '100%', margin: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <div style={{
+                width: 36,
+                height: 36,
+                borderRadius: '50%',
+                backgroundColor: 'rgba(255, 59, 48, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--color-danger)'
+              }}>
+                <Trash2 size={20} />
+              </div>
+              <h3 style={{ fontSize: 17, fontWeight: 700 }}>Delete Lead?</h3>
+            </div>
+
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.5 }}>
+              Are you sure you want to delete lead <strong>{leadToDelete.display_id} ({leadToDelete.name})</strong>?
+            </p>
+
+            <div style={{
+              backgroundColor: 'rgba(255, 59, 48, 0.08)',
+              border: '1px solid rgba(255, 59, 48, 0.2)',
+              borderRadius: 8,
+              padding: 12,
+              marginBottom: 20,
+              fontSize: 13,
+              color: '#c62828'
+            }}>
+              <strong>Warning:</strong> All associated data (pipeline opportunities, scheduled follow-ups, and timeline activities) linked to this lead will also be permanently deleted.
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setLeadToDelete(null)}
+                disabled={isDeleting}
+                style={{ flex: 1 }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={handleDeleteLead}
+                disabled={isDeleting}
+                style={{ flex: 1.2 }}
+              >
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

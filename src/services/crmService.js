@@ -376,18 +376,18 @@ export async function deleteLead(leadId, userId) {
   // Delete lead row
   await filterAndOverwrite('04_Leads', row => row[0] !== leadId);
 
-  // Delete related opportunities (where lead_id matches)
-  await filterAndOverwrite('05_Opportunities', row => row[7] !== leadId); // lead_id column index 7 based on schema
+  // Delete related opportunities (where lead_id matches column 3 or opportunity_id)
+  await filterAndOverwrite('05_Opportunities', row => row[3] !== leadId);
 
   // Delete related followups (lead_id or opportunity_id)
   await filterAndOverwrite('06_Followups', row => {
-    const leadCol = row[3]; // lead_id column index 3
-    const oppCol = row[4]; // opportunity_id column index 4
-    return leadCol !== leadId && oppCol !== leadId; // oppCol will not equal leadId, but safe
+    const leadCol = row[3];
+    const oppCol = row[4];
+    return leadCol !== leadId && oppCol !== leadId;
   });
 
-  // Optionally delete activities related to this lead
-  await filterAndOverwrite('07_Activities', row => row[2] !== leadId); // lead_id column index 2
+  // Delete activities related to this lead
+  await filterAndOverwrite('07_Activities', row => row[2] !== leadId);
 
   // Log deletion activity
   await logActivity({
@@ -395,13 +395,11 @@ export async function deleteLead(leadId, userId) {
     customerId,
     userId,
     type: 'LEAD_DELETED',
-    description: `Deleted lead ${lead.display_id} and associated data.`,
+    description: `Deleted lead ${lead.display_id || leadId} and associated data.`,
     outcome: 'Success'
   });
 
   return { success: true };
-}
-;
 }
 
 // --- CUSTOMERS ---

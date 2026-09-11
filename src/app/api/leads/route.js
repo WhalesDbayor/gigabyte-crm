@@ -37,6 +37,17 @@ export async function DELETE(request) {
 
     const { leadId } = await request.json();
     const userId = request.headers.get('x-user-id') || 'SYSTEM';
+    const userRole = request.headers.get('x-user-role') || '';
+
+    // Only manager is authorized to delete leads
+    if (userRole && userRole !== 'manager') {
+      return NextResponse.json({ success: false, error: 'Access denied: Only Managers can delete leads.' }, { status: 403 });
+    }
+
+    if (!leadId) {
+      return NextResponse.json({ success: false, error: 'leadId is required.' }, { status: 400 });
+    }
+
     await deleteLead(leadId, userId);
     return NextResponse.json({ success: true });
   } catch (error) {
