@@ -1,4 +1,4 @@
-import { readSheet, appendRow, updateRow } from '../lib/google-sheets';
+import { readSheet, appendRow, updateRow, getCredentials, getSheetsClient } from '../lib/google-sheets';
 
 // Helper to generate UUIDs locally
 function generateUUID() {
