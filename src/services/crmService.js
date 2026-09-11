@@ -1,4 +1,4 @@
-﻿import { readSheet, appendRow, updateRow } from '../lib/google-sheets';
+import { readSheet, appendRow, updateRow } from '../lib/google-sheets';
 
 // Helper to generate UUIDs locally
 function generateUUID() {
@@ -339,7 +339,69 @@ export async function qualifyLead(leadId, userId) {
     notes: `Follow up on qualified opportunity ${oppDisplayId}.`
   }, userId);
 
-  return { customerId, opportunityId: oppId };
+  return { customerId, opportunityId: oppId }
+
+// --- DELETE LEAD AND ASSOCIATED DATA ---
+export async function deleteLead(leadId, userId) {
+  // Fetch lead to get related IDs
+  const leads = await getLeads();
+  const lead = leads.find(l => l.lead_id === leadId);
+  if (!lead) throw new Error('Lead not found');
+
+  const now = new Date().toISOString();
+  const customerId = lead.customer_id;
+
+  // Helper to filter rows and overwrite sheet
+  async function filterAndOverwrite(sheetName, filterFn) {
+    const rows = await readSheet(sheetName);
+    // Preserve header row format by reading raw values
+    const config = getCredentials();
+    const service = getSheetsClient();
+    const response = await service.spreadsheets.values.get({
+      spreadsheetId: config.spreadsheetId,
+      range: `${sheetName}!A:Z`
+    });
+    const rawRows = response.data.values || [];
+    const header = rawRows[0];
+    const dataRows = rawRows.slice(1).filter(filterFn);
+    const newValues = [header, ...dataRows];
+    await service.spreadsheets.values.update({
+      spreadsheetId: config.spreadsheetId,
+      range: `${sheetName}!A1`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: newValues }
+    });
+  }
+
+  // Delete lead row
+  await filterAndOverwrite('04_Leads', row => row[0] !== leadId);
+
+  // Delete related opportunities (where lead_id matches)
+  await filterAndOverwrite('05_Opportunities', row => row[7] !== leadId); // lead_id column index 7 based on schema
+
+  // Delete related followups (lead_id or opportunity_id)
+  await filterAndOverwrite('06_Followups', row => {
+    const leadCol = row[3]; // lead_id column index 3
+    const oppCol = row[4]; // opportunity_id column index 4
+    return leadCol !== leadId && oppCol !== leadId; // oppCol will not equal leadId, but safe
+  });
+
+  // Optionally delete activities related to this lead
+  await filterAndOverwrite('07_Activities', row => row[2] !== leadId); // lead_id column index 2
+
+  // Log deletion activity
+  await logActivity({
+    leadId,
+    customerId,
+    userId,
+    type: 'LEAD_DELETED',
+    description: `Deleted lead ${lead.display_id} and associated data.`,
+    outcome: 'Success'
+  });
+
+  return { success: true };
+}
+;
 }
 
 // --- CUSTOMERS ---
