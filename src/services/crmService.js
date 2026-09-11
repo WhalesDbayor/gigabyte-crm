@@ -344,28 +344,35 @@ export async function qualifyLead(leadId, userId) {
 
 // --- DELETE LEAD AND ASSOCIATED DATA ---
 export async function deleteLead(leadId, userId) {
-  // Fetch lead to get related IDs
+  // Fetch lead to verify existence and get associated customer_id
   const leads = await getLeads();
   const lead = leads.find(l => l.lead_id === leadId);
   if (!lead) throw new Error('Lead not found');
 
-  const now = new Date().toISOString();
   const customerId = lead.customer_id;
+  const config = getCredentials();
+  if (!config) throw new Error('Google Sheets credentials not configured');
+  const service = getSheetsClient();
 
-  // Helper to filter rows and overwrite sheet
+  // Helper to filter rows and cleanly overwrite sheet without leaving trailing duplicate rows
   async function filterAndOverwrite(sheetName, filterFn) {
-    const rows = await readSheet(sheetName);
-    // Preserve header row format by reading raw values
-    const config = getCredentials();
-    const service = getSheetsClient();
     const response = await service.spreadsheets.values.get({
       spreadsheetId: config.spreadsheetId,
       range: `${sheetName}!A:Z`
     });
     const rawRows = response.data.values || [];
+    if (rawRows.length <= 1) return; // Only header or empty
     const header = rawRows[0];
     const dataRows = rawRows.slice(1).filter(filterFn);
     const newValues = [header, ...dataRows];
+
+    // CRITICAL: Clear existing range first so shrinking rows don't leave phantom duplicates at the bottom
+    await service.spreadsheets.values.clear({
+      spreadsheetId: config.spreadsheetId,
+      range: `${sheetName}!A:Z`
+    });
+
+    // Write cleaned rows back starting at A1
     await service.spreadsheets.values.update({
       spreadsheetId: config.spreadsheetId,
       range: `${sheetName}!A1`,
@@ -374,31 +381,76 @@ export async function deleteLead(leadId, userId) {
     });
   }
 
-  // Delete lead row
+  // 1. Collect all Opportunity IDs associated with this lead before deleting them
+  const opportunities = await getOpportunities();
+  const linkedOppIds = new Set(
+    opportunities
+      .filter(o => o.lead_id === leadId)
+      .map(o => o.opportunity_id)
+      .filter(Boolean)
+  );
+
+  // 2. Delete lead row from 04_Leads
   await filterAndOverwrite('04_Leads', row => row[0] !== leadId);
 
-  // Delete related opportunities (where lead_id matches column 3 or opportunity_id)
+  // 3. Delete related opportunities from 05_Opportunities (lead_id is column index 3)
   await filterAndOverwrite('05_Opportunities', row => row[3] !== leadId);
 
-  // Delete related followups (lead_id or opportunity_id)
+  // 4. Delete related follow-ups from 06_Followups
+  // In SCHEMAS['06_Followups']:
+  // col 3 = lead_id, col 4 = opportunity_id
   await filterAndOverwrite('06_Followups', row => {
-    const leadCol = row[3];
-    const oppCol = row[4];
-    return leadCol !== leadId && oppCol !== leadId;
+    const rowLeadId = row[3] || '';
+    const rowOppId = row[4] || '';
+    const matchesLead = rowLeadId === leadId;
+    const matchesOpp = rowOppId && linkedOppIds.has(rowOppId);
+    return !matchesLead && !matchesOpp;
   });
 
-  // Delete activities related to this lead
-  await filterAndOverwrite('07_Activities', row => row[2] !== leadId);
-
-  // Log deletion activity
-  await logActivity({
-    leadId,
-    customerId,
-    userId,
-    type: 'LEAD_DELETED',
-    description: `Deleted lead ${lead.display_id || leadId} and associated data.`,
-    outcome: 'Success'
+  // 5. Delete activities related to this lead or its opportunities from 07_Activities
+  // In SCHEMAS['07_Activities']:
+  // col 2 = lead_id, col 3 = opportunity_id
+  await filterAndOverwrite('07_Activities', row => {
+    const rowLeadId = row[2] || '';
+    const rowOppId = row[3] || '';
+    const matchesLead = rowLeadId === leadId;
+    const matchesOpp = rowOppId && linkedOppIds.has(rowOppId);
+    return !matchesLead && !matchesOpp;
   });
+
+  // 6. Delete tasks related to this lead or its opportunities from 12_Tasks
+  // In SCHEMAS['12_Tasks']:
+  // col 5 = related_lead_id, col 6 = related_opportunity_id
+  try {
+    await filterAndOverwrite('12_Tasks', row => {
+      const rowLeadId = row[5] || '';
+      const rowOppId = row[6] || '';
+      const matchesLead = rowLeadId === leadId;
+      const matchesOpp = rowOppId && linkedOppIds.has(rowOppId);
+      return !matchesLead && !matchesOpp;
+    });
+  } catch (e) {
+    console.error('Error clearing tasks for deleted lead:', e);
+  }
+
+  // 7. Log audit record of deletion
+  try {
+    const audit = {
+      audit_id: generateUUID(),
+      user_id: userId || 'SYSTEM',
+      action: 'LEAD_DELETED',
+      entity_type: 'Lead',
+      entity_id: leadId,
+      field_changed: '',
+      old_value: `${lead.display_id || leadId} (${lead.name || ''})`,
+      new_value: '',
+      timestamp: new Date().toISOString(),
+      ip_device_reference: 'CRM-Server'
+    };
+    await appendRow('16_AuditLogs', audit);
+  } catch (e) {
+    console.error('Failed to write deletion audit log:', e);
+  }
 
   return { success: true };
 }
