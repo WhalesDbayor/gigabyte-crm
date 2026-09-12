@@ -137,7 +137,7 @@ export default function LoginPage() {
           <strong>Demo logins:</strong>
           <ul style={{ paddingLeft: 16, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <li>Sales: <code>sales@gigabyte.com</code> / <code>gigabyte123</code></li>
-            <li>Manager: <code>manager@gigabyte.com</code> / <code>gigabyte123</code></li>
+            <li>Manager: <code>manager@gigabyte.com</code> / <code>gigaby*****</code></li>
           </ul>
         </div>
       </div>
